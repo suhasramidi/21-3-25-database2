@@ -1,42 +1,40 @@
+// index.js
 const express = require('express');
-const { resolve } = require('path');
-const mongoose = require('mongoose')
-const userSchema=require('./schema')
-require('dotenv').config();
+const mongoose = require('mongoose');
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 const app = express();
-const port = 5000;
 app.use(express.json());
 
-app.use(express.static('static'));
+// MongoDB Connection
+mongoose.connect(process.env.MONGODB_URI, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('Connected to database'))
+  .catch(err => console.error('Error connecting to database', err));
 
-async function connectDataBase(){
-  try{
-    await mongoose.connect(process.env.MongoDB_URI)
-    console.log(`Connected to database`)
+// User Schema
+const userSchema = new mongoose.Schema({
+  username: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  age: { type: Number, required: true },
+});
 
-  }catch(err){
-    console.log('Error connecting to database')
+const User = mongoose.model('User', userSchema);
+
+// POST /api/users
+app.post('/api/users', async (req, res) => {
+  try {
+    const user = new User(req.body);
+    await user.save();
+    res.status(201).json({ message: 'User created successfully' });
+  } catch (error) {
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({ message: 'Validation error', error: error.errors });
+    }
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
-}
-connectDataBase();
-
-app.get('/', (req, res) => {
-  res.sendFile(resolve(__dirname, 'pages/index.html'));
 });
 
-app.post('/api/users',async (req,res)=>{
-  try{
-  const schema = new userSchema(req.body);
-  const savedUser = await schema.save();
-  res.status(201).send({msg:'user created ',data:savedUser})
-}catch(err){
-  res.status(500).send({msg:'something went wrong',err})
-}
-
-
-})
-
-app.listen(port, () => {
-  console.log(`Example app listening at http://localhost:${port}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
